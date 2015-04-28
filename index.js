@@ -13,7 +13,7 @@ var io = require('socket.io')(http);
 
 
 /* this is list of const for config using in the app*/
-const conString = "postgres://postgres:password@localhost/NEX";
+const conString = "postgres://postgres:fKkg8GPb@10.240.199.51/NEX";
 const google_api_key = "AIzaSyAArUeU1n8FB8ZqxRLyRCL-DivL0aY4ses";
 const jwt_secret = "hihihi"; // Need to be VERY SECRET. 
 const pn_publish_key = "pub-c-7b8f064f-cc65-4656-8d63-d6760bb6e0fe";

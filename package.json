@@ -14,8 +14,9 @@
 	"request" : "*",
 	"jsonwebtoken": "*",
 	"pg" : "*",
-	"bcrypt" : "*",
-	"lodash" : "*"
+	"password-hash":"*",
+	"lodash" : "*",
+	"socket.io" : "*"
   },
   "engines": {
     "node": "0.10.x"
