@@ -138,7 +138,7 @@ function _get_random_avatar() {
 	}
 };
 
-var multer_dest_avatar = multer({ dest: 'public/avatar/' });
+var multer_dest_avatar = multer({ dest: __dirname +'/public/avatar/' });
 app.post('/signup_basic_avatar_upload', multer_dest_avatar, function(req, res){
 	console.log('IN POST /signup_basic_avatar_upload)');
 	console.log(req.body);
@@ -1351,4 +1351,5 @@ var Notification_util = function() {
 
 http.listen(app.get('port'), function() {
   console.log("Node app is running at localhost:" + app.get('port'));
+  console.log(__dirname);
 });
