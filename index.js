@@ -150,12 +150,12 @@ app.post('/signup_basic_avatar_upload', multer_dest_avatar, function(req, res){
 		console.log(req.files);
 		avatar = req.files.file.name;
 		
-		var files = req.files.file;
-		if (!util.isArray(req.files.file)) {
-			files = [ req.files.file ];
-		} 
+		// var files = req.files.file;
+		// if (!util.isArray(req.files.file)) {
+			// files = [ req.files.file ];
+		// } 
 
-		filesUploaded = files.length;
+		// filesUploaded = files.length;
 	}
 	res.jsonp({retcod: 0, avatar: avatar});
 	
