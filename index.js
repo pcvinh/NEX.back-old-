@@ -138,7 +138,7 @@ function _get_random_avatar() {
 	}
 };
 
-var multer_dest_avatar = multer({ dest: __dirname +'/public/avatar/' });
+var multer_dest_avatar = multer({ dest: './public/avatar/' });
 app.post('/signup_basic_avatar_upload', multer_dest_avatar, function(req, res){
 	console.log('IN POST /signup_basic_avatar_upload)');
 	console.log(req.body);
@@ -148,6 +148,7 @@ app.post('/signup_basic_avatar_upload', multer_dest_avatar, function(req, res){
 		avatar = _get_random_avatar();
 	} else {
 		console.log(req.files);
+		console.log(req.files.file.name);
 		avatar = req.files.file.name;
 		
 		// var files = req.files.file;
