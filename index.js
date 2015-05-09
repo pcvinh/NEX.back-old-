@@ -13,7 +13,8 @@ var io = require('socket.io')(http);
 
 
 /* this is list of const for config using in the app*/
-const conString = "postgres://postgres:fKkg8GPb@10.240.199.51/NEX";
+//const conString = "postgres://postgres:fKkg8GPb@10.240.199.51/NEX";
+const conString = "postgres://postgres:password@127.0.0.1/NEX";
 const google_api_key = "AIzaSyAArUeU1n8FB8ZqxRLyRCL-DivL0aY4ses";
 const jwt_secret = "hihihi"; // Need to be VERY SECRET. 
 const pn_publish_key = "pub-c-7b8f064f-cc65-4656-8d63-d6760bb6e0fe";
@@ -66,21 +67,27 @@ app.all('/', function(req, res, next) {
 
 			done(client);
 			res.writeHead(500, {'content-type': 'text/plain'});
-			res.end('Internal Error happen.');
+			res.end('Internal Error happen.' + err);
+			
+			console.log("Error //signinup:" + err);
 			return true;
 		};
 	
 		if(handleError(err)) return;
 		
-		client.query('SELECT "_id","password" from "User" WHERE email like \''+email+'\'', function(err, result) {
+		client.query('SELECT "_id", "nickname", "avatar","password","profile_level" from "User" WHERE email like \''+email+'\'', function(err, result) {
 			if(handleError(err)) return;
 		
 			if(result.rows.length > 0) { // SIGN IN. check password. 
 				var hash_password = hash.generate(password);
 				done();
-				if(hash.verify(password, result.rows[0].password)) { // sign in success. return token.
-					var token = jsonwebtoken.sign({ _id: result.rows[0]._id }, jwt_secret);
-					res.jsonp({retcod: 0, token : token});
+				if(hash.verify(password, result.rows[0].password)) { // sign in success. return token.					
+					if(result.rows[0].profile_level >= 1) {
+						var token = jsonwebtoken.sign({ _id: result.rows[0]._id, nickname : result.rows[0].nickname, avatar : result.rows[0].avatar}, jwt_secret);
+						res.jsonp({retcod: 0, token : token, avatar : result.rows[0].avatar, nickname : result.rows[0].nickname});
+					} else {
+						res.jsonp({retcod: 1, id : result.rows[0]._id});
+					}
 				} else {	// sign in false. return 403 error. 
 					res.jsonp({retcod: -1});
 				}
@@ -90,11 +97,9 @@ app.all('/', function(req, res, next) {
 					if(handleError(err)) return;
 					
 					done();
-					console.log('Success Create new Account: \''+email+'\'');
-
-					var token = jsonwebtoken.sign({ _id: result.rows[0]._id }, jwt_secret);
-					console.log("SUCCESS token = " + token);
-					res.jsonp({retcod: 0, token : token});
+					
+					console.log('Success Create new Account but have to Register basic before can use. id = ' + result.rows[0]._id);
+					res.jsonp({retcod: 1, id : result.rows[0]._id});
 
 					client.end();
 				});
@@ -104,11 +109,107 @@ app.all('/', function(req, res, next) {
 	  });
 	});
 });
- 
+
+
+function _get_random_avatar() {
+	var rad_no = Math.floor((Math.random() * 20) + 1);
+	switch(rad_no) {
+	case 0: return "after_boom.png"; 
+	case 1: return "bad_egg.png"; 
+	case 2: return "bad_smile.png"; 
+	case 3: return "beaten.png"; 
+	case 4: return "default.png"; 
+	case 5: return "eyes_droped.png"; 
+	case 6: return "girl.png"; 
+	case 7: return "greedy.png"; 
+	case 8: return "grimace.png"; 
+	case 9: return "haha.png"; 
+	case 10: return "happy.png"; 	
+	case 11: return "horror.png"; 
+	case 12: return "money.png"; 
+	case 13: return "nothing_to_say.png"; 
+	case 14: return "scorn.png"; 
+	case 15: return "secret_smile.png"; 
+	case 16: return "shame.png"; 
+	case 17: return "super_man.png"; 
+	case 18: return "victory.png"; 
+	case 19: return "haha.png"; 
+	case 20: return "happy.png"; 	
+	}
+};
+
+var multer_dest_avatar = multer({ dest: './public/avatar/' });
+app.post('/signup_basic_avatar_upload', multer_dest_avatar, function(req, res){
+	console.log('IN POST /signup_basic)');
+	console.log(req.body);
+	
+	if ( Object.keys(req.files).length === 0 ) {
+		console.log('no files uploaded use the default avatar');
+		avatar = _get_random_avatar();
+	} else {
+		console.log(req.files);
+		avatar = req.files.file1.name;
+		
+		var files = req.files.file1;
+		if (!util.isArray(req.files.file1)) {
+			files = [ req.files.file1 ];
+		} 
+
+		filesUploaded = files.length;
+	}
+	res.jsonp({retcod: 0, avatar: avatar});
+	
+});
+
 app.post('/signup_basic', function(req, res){
-    console.log(req.body) // form fields
-    console.log(req.files) // form files
-    res.status(204).end()
+	console.log('IN POST /signup_basic)');
+	console.log(req.body);
+
+	var id;
+	var avatar;
+	var nickname;
+	var filesUploaded = 0;
+	
+	if(typeof req.body.nickname != 'undefined' && req.body.nickname != null && req.body.nickname != '') {
+		id = req.body.id;
+		nickname = req.body.nickname;
+		if(typeof req.body.avatar != 'undefined' && req.body.avatar != null && req.body.avatar != '') {
+			avatar = req.body.avatar;
+		} else {
+			avatar = _get_random_avatar();
+		}
+	} else {
+		res.jsonp({retcod: -1});
+		return;
+	}
+	
+	pg.connect(conString,function(err, client, done) {	
+		var handleError = function(err) {
+			// no error occurred, continue with the request
+			if(!err) return false;
+
+			done(client);
+			res.writeHead(500, {'content-type': 'text/plain'});
+			res.end('Internal Error happen.' + err);
+			
+			console.log("Error //signinup:" + err);
+			return true;
+		};
+	
+		if(handleError(err)) return;
+		
+		client.query('UPDATE "User" SET  nickname=\''+nickname+'\', avatar=\''+avatar+'\', profile_level = 1 WHERE _id = '+id, function(err, result) {
+			if(handleError(err)) return;
+			
+			done();
+			var token = jsonwebtoken.sign({ _id: id, nickname : nickname, avatar : avatar}, jwt_secret);
+			res.jsonp({retcod: 0, token : token});
+			
+			console.log('Success signup_basic: for id = '+id+' & avatar = ' +avatar+ ' & nickname = ' + nickname);
+			client.end();
+		});
+		
+	});
 });
 
 app.post('/signup_detail', function(req, res){
@@ -137,7 +238,7 @@ app.post('/signup_others', function(req, res){
  
  return false mean not register.
  ****************/
- app.get('/init', function(req, res) { // currently do same as init_radar_here
+ app.get('/init', function(req, res) { // currently just to get the favourite radar only. Future we can send all the settings, me info,...
 	console.log("GET request //init");
 	var token = req.query.token;
 	
@@ -351,7 +452,7 @@ app.post('/create_post', function(req, res) {
 	var message = req.body;
 	
 	var channels = [message.Channels], content = (typeof message.Content != 'undefined') ? message.Content : "", token = message.Token;
-	var user_id = jsonwebtoken.decode(token)._id;
+	var user_id = jsonwebtoken.decode(token)._id, avatar = jsonwebtoken.decode(token).avatar, nickname = jsonwebtoken.decode(token).nickname;
 	console.log("POST request /create_post, body = ", JSON.stringify(req.body));
 	
 	pg.connect(conString,function(err, client, done) {	
@@ -377,7 +478,7 @@ app.post('/create_post', function(req, res) {
 		
 		var array_channel = "{"+channels+"}";
 		console.log('INSERT INTO "Post"( content, _user_id, expired_duration, channels) VALUES(\''+ content +'\','+user_id+', 5*60, \''+array_channel+'\' ) RETURNING _id, expired_duration, (select nickname, avatar from "User" where _id like "'+user_id+'")');
-		client.query('INSERT INTO "Post"( content, _user_id, expired_duration, channels) VALUES(\''+ content +'\','+user_id+', 5*60, \''+array_channel+'\' ) RETURNING _id, create_time, (select nickname from "User" where _id = '+user_id+'), (select avatar from "User" where _id = '+user_id+')', function(err, result) {
+		client.query('INSERT INTO "Post"( content, _user_id, expired_duration, channels) VALUES(\''+ content +'\','+user_id+', 5*60, \''+array_channel+'\' ) RETURNING _id, create_time', function(err, result) {
 			if(handleError(err)) return;
 			
 			// var id = result.rows[0]._id, expired_duration = result.rows[0].expired_duration;
@@ -396,7 +497,6 @@ app.post('/create_post', function(req, res) {
 
 					
 			var id = result.rows[0]._id, create_time = result.rows[0].create_time;
-			var user_nickname = result.rows[0].nickname, user_avatar = result.rows[0].avatar;
 			var channel = channels[0];	
 			
 			client.query('INSERT INTO "Relay"(_id,_entity_id, _user_id, channel ) VALUES((select coalesce(MAX(_id),0) FROM "Relay" where _entity_id = '+id+') + 1,\''+ id +'\',\''+ user_id +'\', \''+channel+'\')', function(err, result) {
@@ -409,8 +509,8 @@ app.post('/create_post', function(req, res) {
 				temp.id = id;
 				temp.owner = {};
 				temp.owner.id = user_id;
-				temp.owner.name = user_nickname;
-				temp.owner.avatar = user_avatar;
+				temp.owner.nickname = nickname;
+				temp.owner.avatar = avatar;
 				temp.content = content;
 				temp.metadata = {};
 				temp.metadata.create_time = create_time;
@@ -453,7 +553,7 @@ process:
 - radar here check that you are at home.
 - or using favourit radar home. 
 ********************/
-app.post('/add_radar_favourite', function(req, res) {
+app.post('/create_radar_favourite', function(req, res) {
 	var message = req.body;
 	console.log(message);
 	var token = message.Token;
@@ -510,7 +610,7 @@ app.post('/create_post_like', function(req, res) {
 	console.log(message);
 	
 	var token = message.Token, id = message.id;
-	var user_id = jsonwebtoken.decode(token)._id;
+	var user_id = jsonwebtoken.decode(token)._id, nickname = jsonwebtoken.decode(token).nickname, avatar = jsonwebtoken.decode(token).avatar;
 
 	pg.connect(conString,function(err, client, done) {	
 		var handleError = function(err) {
@@ -526,10 +626,14 @@ app.post('/create_post_like', function(req, res) {
 		
 		if(handleError(err)) return;
 
-		client.query('INSERT INTO "Like"(_id,_entity_id, _user_id ) VALUES((select coalesce(MAX(_id),0) FROM "Like" where _entity_id = '+id+') + 1,\''+ id +'\',\''+ user_id +'\') RETURNING (select array_accum( distinct channel) channels from "Relay" where _entity_id = '+id+' ), (select count(_id) no_like from "Like" where _entity_id = '+id+')', function(err, result) {
+		client.query('INSERT INTO "Like"(_id,_entity_id, _user_id ) VALUES((select coalesce(MAX(_id),0) FROM "Like" where _entity_id = '+id+') + 1,\''+ id +'\',\''+ user_id +'\') RETURNING (select _user_id owner_id from "Post" where _id = '+id+'), (select array_accum( distinct channel) channels from "Relay" where _entity_id = '+id+' ), (select count(_id) no_like from "Like" where _entity_id = '+id+')', function(err, result) {
 			if(handleError(err)) return;
 			
-			var no_like = result.rows[0].no_like, channels = result.rows[0].channels;
+			
+			
+			var owner_id = result.rows[0].owner_id, no_like = result.rows[0].no_like, channels = result.rows[0].channels;
+			Notification_util.alert(owner_id, {id: user_id, nickname: nickname, avatar: avatar}, 'like your' , {id: id, name : 'post', type : 1});
+			
 			done();
 			var i=0;
 			console.log('channels('+channels.length+') : ' + channels);
@@ -568,7 +672,7 @@ app.post('/create_post_comment', function(req, res) {
 	console.log(message);
 	
 	var token = message.Token, id = message.id, content = message.content;
-	var user_id = jsonwebtoken.decode(token)._id;
+	var user_id = jsonwebtoken.decode(token)._id, nickname = jsonwebtoken.decode(token).nickname, avatar = jsonwebtoken.decode(token).avatar;
 
 	pg.connect(conString,function(err, client, done) {	
 		var handleError = function(err) {
@@ -584,10 +688,11 @@ app.post('/create_post_comment', function(req, res) {
 		
 		if(handleError(err)) return;
 
-		client.query('INSERT INTO "Comment"(_id,_entity_id, _user_id, content ) VALUES((select coalesce(MAX(_id),0) FROM "Comment" where _entity_id = '+id+') + 1,\''+ id +'\',\''+ user_id +'\', \''+content+'\') RETURNING (select array_accum( distinct channel) channels from "Relay" where _entity_id = '+id+' ), (select count(_id) no_comment from "Comment" where _entity_id = '+id+')', function(err, result) {
+		client.query('INSERT INTO "Comment"(_id,_entity_id, _user_id, content ) VALUES((select coalesce(MAX(_id),0) FROM "Comment" where _entity_id = '+id+') + 1,\''+ id +'\',\''+ user_id +'\', \''+content+'\') RETURNING (select _user_id owner_id from "Post" where _id = '+id+'),(select array_accum( distinct channel) channels from "Relay" where _entity_id = '+id+' ), (select count(_id) no_comment from "Comment" where _entity_id = '+id+')', function(err, result) {
 			if(handleError(err)) return;
 			
-			var no_comment = result.rows[0].no_comment, channels = result.rows[0].channels;
+			var owner_id = result.rows[0].owner_id, no_comment = result.rows[0].no_comment, channels = result.rows[0].channels;
+			Notification_util.alert(owner_id, {id:user_id, nickname:nickname, avatar: avatar}, 'comment your' , {id: id, name : 'post', type : 1});
 			done();
 			var i=0;
 			console.log('channels('+channels.length+') : ' + channels);
@@ -604,7 +709,7 @@ app.post('/create_post_comment', function(req, res) {
 			} else {
 				console.log('Wait until 10 comments to broadcast');
 			}
-			res.jsonp({retcode: 0});
+			res.jsonp({retcode: 0, avatar : avatar, nickname :nickname, content : content});
 			client.end();
 		});
 	});	
@@ -627,7 +732,7 @@ app.post('/create_post_relay', function(req, res) {
 	console.log(message);
 	
 	var token = message.Token, id = message.id, channel = message.channel;
-	var user_id = jsonwebtoken.decode(token)._id;
+	var user_id = jsonwebtoken.decode(token)._id, nickname = jsonwebtoken.decode(token).nickname, avatar = jsonwebtoken.decode(token).avatar;
 
 	pg.connect(conString,function(err, client, done) {	
 		var handleError = function(err) {
@@ -643,10 +748,11 @@ app.post('/create_post_relay', function(req, res) {
 		
 		if(handleError(err)) return;
 
-		client.query('INSERT INTO "Relay"(_id,_entity_id, _user_id, channel ) VALUES((select coalesce(MAX(_id),0) FROM "Relay" where _entity_id = '+id+') + 1,\''+ id +'\',\''+ user_id +'\', \''+channel+'\') RETURNING (select count(_id) count_channel from "Relay" where _entity_id = '+id+' AND channel like \''+channel+'\'), (select array_accum( distinct channel) channels from "Relay" where _entity_id = '+id+' ), (select count(_id) no_relay from "Relay" where _entity_id = '+id+')', function(err, result) {
+		client.query('INSERT INTO "Relay"(_id,_entity_id, _user_id, channel ) VALUES((select coalesce(MAX(_id),0) FROM "Relay" where _entity_id = '+id+') + 1,\''+ id +'\',\''+ user_id +'\', \''+channel+'\') RETURNING (select _user_id owner_id from "Post" where _id = '+id+'),(select count(_id) count_channel from "Relay" where _entity_id = '+id+' AND channel like \''+channel+'\'), (select array_accum( distinct channel) channels from "Relay" where _entity_id = '+id+' ), (select count(_id) no_relay from "Relay" where _entity_id = '+id+')', function(err, result) {
 			if(handleError(err)) return;
 			
-			var no_relay = result.rows[0].no_realy, channels = result.rows[0].channels, count_channel = result.rows[0].count_channel;
+			var owner_id = result.rows[0].owner_id, no_relay = result.rows[0].no_realy, channels = result.rows[0].channels, count_channel = result.rows[0].count_channel;
+			Notification_util.alert(owner_id, {id:user_id, nickname: nickname, avatar: avatar}, 'relay your' , {id: id, name : 'post', type : 1});
 			done();
 			var i=0;
 			console.log('channels('+channels.length+') : ' + channels);
@@ -661,9 +767,6 @@ app.post('/create_post_relay', function(req, res) {
 					i++;
 				}			
 			}
-			
-			client.end();
-			
 			if(count_channel == 1){
 				console.log('Yes, it is first time this Post['+id+'] appear in channel = '+channel+'. Broadcast it');
 				client.query('SELECT p._id pid, u._id uid, u.nickname, u.avatar, p.content, p.create_time, p.n_view,(select count(c._id) from "Comment" c where c._entity_id = p._id) as no_comment, (select count(l._id) from "Like" l where l._entity_id = p._id) as no_like, (select count(r._id) from "Relay" r where r._entity_id = p._id) as no_relay FROM "Post" p,"User" u WHERE  p._user_id = u._id AND p._id = '+id+')', function(err, result) {
@@ -672,12 +775,11 @@ app.post('/create_post_relay', function(req, res) {
 					done();
 					var i = 0;					
 					var temp = {"new" : true, "type" : 1};	
-					if( i < result.rows.length) {	
-										
+					if( i < result.rows.length) {
 						temp.id = result.rows[i].pid;
 						temp.owner = {};
 						temp.owner.id = result.rows[i].uid;
-						temp.owner.name = result.rows[i].nickname;
+						temp.owner.nickname = result.rows[i].nickname;
 						temp.owner.avatar = result.rows[i].avatar;
 						temp.content = result.rows[i].content;
 						temp.metadata = {};
@@ -687,17 +789,18 @@ app.post('/create_post_relay', function(req, res) {
 						temp.i.c = parseInt(result.rows[i].no_comment);
 						temp.i.r = parseInt(result.rows[i].no_relay - 1);
 					} 
-					
+									
+					pubnub.publish({ 
+						channel   : channel,
+						message   : temp,
+						callback  : function(e) { console.log( "SUCCESS!", e ); },
+						error     : function(e) { console.log( "FAILED! RETRY PUBLISH!", e ); }
+					});	
 					client.end();
 				});
-				
-				pubnub.publish({ 
-					channel   : channel,
-					message   : temp,
-					callback  : function(e) { console.log( "SUCCESS!", e ); },
-					error     : function(e) { console.log( "FAILED! RETRY PUBLISH!", e ); }
-				});	
+
 			} 
+			client.end();
 			
 			res.jsonp({retcode: 0});
 			
@@ -863,7 +966,7 @@ app.get('/get_post_list', function(req, res) {
 				temp.id = result.rows[i].pid;
 				temp.owner = {};
 				temp.owner.id = result.rows[i].uid;
-				temp.owner.name = result.rows[i].nickname;
+				temp.owner.nickname = result.rows[i].nickname;
 				temp.owner.avatar = result.rows[i].avatar;
 				temp.content = result.rows[i].content;
 				temp.metadata = {};
@@ -919,7 +1022,7 @@ app.get('/get_post_detail', function(req, res) {
 				temp.id = result.rows[i].pid;
 				temp.owner = {};
 				temp.owner.id = result.rows[i].uid;
-				temp.owner.name = result.rows[i].nickname;
+				temp.owner.nickname = result.rows[i].nickname;
 				temp.owner.avatar = result.rows[i].avatar;
 				temp.content = result.rows[i].content;
 				temp.metadata = {};
@@ -974,7 +1077,7 @@ app.get('/get_post_comment_list', function(req, res) {
 				temp.id = result.rows[i]._id;
 				temp.owner = {};
 				temp.owner.id = result.rows[i].uid;
-				temp.owner.name = result.rows[i].nickname;
+				temp.owner.nickname = result.rows[i].nickname;
 				temp.owner.avatar = result.rows[i].avatar;
 				temp.content = result.rows[i].content;
 				temp.metadata = {};
@@ -1037,6 +1140,23 @@ app.get('/test', function(reg, res) {
 	}
 });
 
+
+/************************ 
+This is for NOTIFICATION  
+*************************/
+
+app.get('/test_socketio_emit', function(reg, res) {
+	try{
+	//io.to(reg.query.id).emit('message', reg.query.msg);
+	Notification_util.alert(reg.query.o_id, {"id" : reg.query.s_id}, 'love' ,{ "nickname" : "Phan cao Vinh"});
+	res.jsonp({retcode: 0});
+	} catch (e) {
+		console.log(e);
+		res.jsonp({retcode: 1});
+	}
+});
+
+
 var _notify = function() {
 	var map = {};
 	
@@ -1086,7 +1206,7 @@ io.on('connection', function(socket){
 		channel: user_id,
 		message: function(m){ 
 			console.log('we will emit to user id = ' + user_id);
-			_notify.emit(user_id, m)
+			_notify.emit(user_id, m);
 		},
 		error: function (error) {
 		  // Handle error here
@@ -1102,6 +1222,132 @@ io.on('connection', function(socket){
   });
   
 });
+
+app.get('/notification_list', function(req, res) {
+	var token = req.query.token;
+	var user_id = jsonwebtoken.decode(token)._id;
+	
+	pg.connect(conString,function(err, client, done) {	
+		var handleError = function(err) {
+			// no error occurred, continue with the request
+			if(!err) return false;
+
+			done(client);
+			res.writeHead(500, {'content-type': 'text/plain'});
+			res.end('Internal Error happen.' + err);
+			return true;
+		};
+		
+		if(handleError(err)) return;
+		client.query('SELECT _id,subject, verb, object, type FROM "Notification" WHERE user_id = \'' + user_id + '\' AND viewed = FALSE', function(err, result) {
+			if(handleError(err)) return;
+			
+			done();
+			var notification_list = [];
+			var i = 0;
+			while( i < result.rows.length) {
+				var temp = {};
+				temp.id = result.rows[i]._id;
+				temp.s = result.rows[i].subject;
+				temp.v = result.rows[i].verb;
+				temp.o = result.rows[i].object;
+				temp.t = result.rows[i].type;
+				
+				notification_list.push(temp);
+				i++;
+			} 
+			
+			res.jsonp({retcode: 0, list : notification_list});
+			client.end();
+			
+		});
+	});
+});
+
+app.get('/notification_viewed', function(req, res) {
+	var token = req.query.token;
+	var id = req.query.id;
+	var user_id = jsonwebtoken.decode(token)._id;
+	
+	pg.connect(conString,function(err, client, done) {	
+		var handleError = function(err) {
+			// no error occurred, continue with the request
+			if(!err) return false;
+
+			done(client);
+			res.writeHead(500, {'content-type': 'text/plain'});
+			res.end('Internal Error happen.' + err);
+			return true;
+		};
+		
+		if(handleError(err)) return;
+		client.query('UPDATE "Notification" SET viewed=TRUE WHERE user_id = \''+user_id+'\' AND _id = ' + id, function(err, result) {
+			if(handleError(err)) return;
+			
+			done();
+
+			res.jsonp({retcode: 0});
+			client.end();
+			
+		});
+	});
+});
+
+var Notification_util = function() {
+	function alert(owner_id, subject, verb, object) { // comment, like, relay
+		console.log("Notification_util.alert " + 'INSERT INTO "Notification"(user_id, subject, verb, object, type) VALUES ('+owner_id+', \''+JSON.stringify(subject)+'\', \''+verb+'\', \''+JSON.stringify(object)+'\', 0)');
+		
+		if(subject.id == owner_id) {
+			console.log("No need notify as the owner["+owner_id+"] action");
+			return;
+		} else {
+			console.log("Notify to owner["+owner_id+"] there is action from ["+subject.id+","+subject.nickname+"]");
+		}
+		
+		pg.connect(conString,function(err, client, done) {	
+			var handleError = function(err) {
+				// no error occurred, continue with the request
+				if(!err) return false;
+
+				done(client);
+				return true;
+			};
+			
+			if(handleError(err)) return;
+			client.query('INSERT INTO "Notification"(user_id, subject, verb, object, type) VALUES ('+owner_id+', \''+JSON.stringify(subject)+'\', \''+verb+'\', \''+JSON.stringify(object)+'\', 0) RETURNING _id', function(err, result) {
+				if(handleError(err)) return;
+				
+				
+				// publish
+				var temp = {};
+				temp.id = result.rows[0]._id;
+				temp.s = subject;
+				temp.v = verb;
+				temp.o = object;
+				temp.t = 0;
+				
+				 pubnub.publish({ 
+					channel   : owner_id,
+					message   : temp,
+					callback  : function(e) { console.log( "SUCCESS notify user " + owner_id, e ); },
+					error     : function(e) { console.log( "FAILED! RETRY PUBLISH!", e ); }
+				});	
+				
+				done();
+				client.end();				
+			});
+		});
+	}
+	
+	return  {		
+		//notify_request : notify_request,
+		//notify_invite : notify_invite,
+		alert : alert // type = 0
+	}	
+}();
+////////////////////////////////////////////////
+
+
 
 http.listen(app.get('port'), function() {
   console.log("Node app is running at localhost:" + app.get('port'));
